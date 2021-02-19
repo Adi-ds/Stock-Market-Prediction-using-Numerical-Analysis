@@ -1,0 +1,156 @@
+---
+title: "Stock Market Prediction using Numerical Analysis"
+author: "Aditya Dawn"
+date: "19/02/2021"
+runtime: shiny
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## **Import Data**  
+Here, we are importing the stock history of Apple.
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+library(tidyquant)
+```
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+getSymbols("AAPL",
+           from = "2001-01-01",
+           to = "2020-06-30")
+prices <- tq_get("AAPL",
+                 from = "2001-01-01",
+                 to = "2020-06-30",
+                 get = "stock.prices")
+```
+## **Primary Visualization**  
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+library(plotly)
+p <- prices %>%
+      ggplot(aes(x = date, y = adjusted, color = symbol)) +
+      geom_line()
+ggplotly(p)
+```
+
+Now, let us analyze the stock history of Apple.  
+
+
+
+## **Making of Dataframe**  
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+aapl <- as.data.frame(AAPL)
+aapl <- cbind(Date = rownames(aapl), aapl)
+rownames(aapl) <- 1:nrow(aapl)
+```
+
+
+## **Numerical Aalysis**  
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+library(tseries)
+```
+
+## **Preprocessing of the data**
+
+### **Stationarity of the data**  
+
+For testing of Stationarity of the stock history, let us consider that :
+$H_0 : Not Stationary$ vs $H_1 : Staionary$
+```{r echo=TRUE, message=TRUE, warning=FALSE}
+adf.test(aapl$AAPL.Close,alternative ="stationary")
+```
+The p-value of ADF test is 0.99, which is greater than 0.05. In this case, we fail to reject the null hypothesis. Therefore the data isn't stationary.
+
+```{r echo=TRUE, message=TRUE, warning=FALSE}
+kpss.test(aapl$AAPL.Close, null = "Trend")
+```
+In case of KPSS test, p-value is less than 0.05. In this case, we reject null hypothesis. That means the data isn't stationary. 
+
+### **Removal of Stationarity of the data**  
+Let's check the first level differencing.  
+
+```{r echo=TRUE, warning=FALSE}
+aapl_Close <- diff(aapl$AAPL.Close)
+adf.test(aapl_Close, alternative = "stationary")
+kpss.test(aapl_Close, null = "Trend")
+```
+ADF test has p-value of 0.01 (less than 0.05). Therefore, we reject the null hypothesis. This means the first differenced data is stationary.
+KPSS test has p-value of 0.06833 (greater than 0.05). This means we fail to reject null hypothesis. Therefore, the first differenced data is stationary.  
+
+Data has become stationary after first differencing. However, there is seasonal trend. We need to adjust that. 
+
+### **Seasonality of the data**  
+```{r echo=TRUE, warning=FALSE}
+aapl_Close <- diff(aapl_Close)
+adf.test(aapl_Close, alternative = "stationary")
+kpss.test(aapl_Close,null="Trend")
+```
+
+Here both test suggests the stationarity of data. 
+
+
+
+Let’s analyse the ACF and PACF.
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+library(forecast)
+```
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+ggtsdisplay(aapl_Close, lag.max = 12, xlab=" Years 2001-2020", ylab="AAPL.Close", main="Seasonally Adjusted Close Values")
+```
+
+Clearly, here are not significant points in PACF. While in case of ACF, probable significant points are at lags 2, 5, 7, 9 and 12.
+
+## **ARIMA Model**  
+
+First, let us create the training set.
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+library(caTools)
+aapl_train <- aapl_Close[1:3920]
+```
+
+### **Best ARIMA Model**
+Now, lets find the best ARIMA model on the training set.
+
+```{r echo=TRUE, message=TRUE, warning=FALSE}
+aapl_arm_best <- auto.arima(aapl_train, stationary = TRUE, trace=TRUE)
+```
+
+
+```{r echo=TRUE, message=TRUE}
+summary(aapl_arm_best)
+```
+
+Now, let us analyze the Best ARIMA Model.
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+checkresiduals(aapl_arm_best)
+```
+
+Clearly, the p-value of the Ljug-Box test suggests that, this model is statistically significant.
+
+
+Now, let us fit the data on the training set.
+```{r echo=TRUE, message=TRUE}
+aapl_arima <- arima(aapl_train, order = c(5, 0, 0))
+summary(aapl_arima)
+```
+## **Forecasting with the model on the Apple Stock History**  
+```{r echo=TRUE}
+aapl_forecast <- forecast(aapl_arima, h = 100)
+plot(aapl_forecast)
+```
+
+
+**The Blue part in the above image shows the forecast made by the model.**
+
+  
+  
+  
+  
+# **THANK YOU!**
+
+
+
+
+
